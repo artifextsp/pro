@@ -1,0 +1,680 @@
+Claude
+MacBook Air de Hansel, Conectado
+He dictado la clase de protoboard, hemos realizado ejercicios de convertir esquemas sencillos con actuadores (una A dentro de un circulo) y los estudiantes deben traducir ese esquema a una protoboard , es muy engorroso para mi estar planteando los esquemas y que los estudiantes dibujen la protoboard , tardamos mucho, por lo que, he decidido crear una mi app (css+html+js) y alojarla en mi github para que la puedan acceder que funciones de la siguiente forma: permiteme como docente crear el esquema simplemente una A en un circulo que es actuador con dos puntos de conexion positivo rojo y negativo negro, un rectangulo con un rayito que simbolice la bateria , un interruptor simple , y un simbolo de resistencia eso es todo, obvio que pueda con clic sostenido crear los cables que son lineas y solamente de tres colores, negro , rojo y azul, con eso yo puedo generar todos los esquemas para los ejercicios.... el estudiante solo tendra leds (de los colores basicos) la protoboard de forma horizontal plana blanca , una bateria sin especificación de voltaje, resistencia (una sola que usemos siempre la misma) no me interesa por ahora enseñarles a calcular la ley de ohm solo me interesa que aprendan a conectar y que sepan poner resistencias, interruptores y hacer montajes en la portoboard tanto en serie como en paralelo, el sistema les debe permitir poner leds, poner cables, conectar la bateria , interruptor y dar clic en simular y listo si esta bien debe fucnioanr encender los leds sino esta bien no deben encender , en serie no importa sino ponen resistencias debe funcioanr pero en paralelo deben siempre ponerle resistencia a cada circuiito sino se deben quemar los leds, algo asi cimple sencillo cables de tres colores , rojo, negro y azul .... podriamos implementarlo ?
+
+Escribiendo la lógica de arrastre y liberación de cables
+Sí, se puede implementar. Abajo está la app completa en un solo archivo index.html (HTML + CSS + JS, sin dependencias), lista para subir a GitHub Pages.
+
+Cómo funciona
+
+Modo Docente: armas el esquema con el actuador Ⓐ (+ rojo / − negro), la batería, el interruptor y la resistencia. Para crear un cable, arrastras de un punto de conexión a otro, en rojo, negro o azul. Si sueltas el cable en un espacio vacío, se crea un nodo de unión para ramificar en paralelo. Al final presionas “Copiar enlace para estudiantes”.
+Modo Estudiante: el estudiante abre el enlace y ve el esquema arriba y la protoboard horizontal blanca abajo. Coloca LED de 5 colores, resistencias, interruptores y cables de 3 colores, y luego presiona Simular.
+Reglas de la simulación:
+Si el circuito está cerrado y la polaridad es correcta, los LED encienden.
+En serie funciona aunque no haya resistencia.
+En paralelo, una rama que no tenga su propia resistencia quema sus LED (se ven grises con humo).
+También detecta cortocircuito, LED al revés, interruptor abierto y LED con las dos patas en la misma columna.
+Detalle pedagógico: al pasar el mouse por un orificio se iluminan en verde todos los orificios conectados internamente con él. Así los estudiantes ven cómo funcionan las columnas y los rieles.
+html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Protoboard TSP</title>
+<style>
+:root{--bg:#f3f5f9;--card:#fff;--tx:#1f2937;--mut:#6b7280;--ac:#4f46e5;--bd:#e2e6ee}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:12px 18px;background:#1e1b4b;color:#fff}
+header h1{font-size:1.15rem;margin:0}
+header h1 span{opacity:.7;font-weight:400}
+.tabs button{background:transparent;color:#c7d2fe;border:1px solid #4338ca;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:600;margin-left:6px}
+.tabs button.on{background:#4f46e5;color:#fff}
+main{max-width:1100px;margin:0 auto;padding:14px}
+.vista{display:none}.vista.on{display:block}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
+.barra{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.grupo{display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--bd);border-radius:10px;background:#fafbfd;flex-wrap:wrap}
+.grupo b{font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+.btn{border:1px solid var(--bd);background:#fff;padding:7px 11px;border-radius:8px;cursor:pointer;font-size:.9rem;color:var(--tx)}
+.btn:hover{border-color:var(--ac)}
+.btn.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.btn.pri{background:#16a34a;color:#fff;border-color:#16a34a;font-weight:700}
+.btn.pel{color:#b91c1c}
+.sw{width:24px;height:24px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #9ca3af;cursor:pointer;padding:0}
+.sw.on{box-shadow:0 0 0 3px var(--ac)}
+input[type=text],select{padding:7px 9px;border:1px solid var(--bd);border-radius:8px;font-size:.9rem}
+svg{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none}
+#svgEsq{background:#fff;border:1px solid var(--bd);border-radius:10px;cursor:crosshair}
+.ayuda{font-size:.85rem;color:var(--mut);margin:8px 2px 0;line-height:1.4}
+.elem{cursor:move}
+.elem.sel .hit{stroke:#7c3aed;stroke-dasharray:5 4;stroke-width:1.5;fill:rgba(124,58,237,.06)}
+#panelEsq h2{margin:0 0 6px;font-size:1rem}
+#svgVer{max-height:260px}
+#svgBoard{cursor:crosshair}
+.hole{fill:#3b4252}
+.hole.hl{fill:#16a34a}
+.pieza{cursor:pointer}
+#msgEst{display:none;padding:10px 14px;border-radius:10px;font-weight:600;margin-top:10px;line-height:1.45}
+#msgEst.ok{display:block;background:#dcfce7;color:#14532d}
+#msgEst.err{display:block;background:#fee2e2;color:#7f1d1d}
+#msgEst.warn{display:block;background:#fef3c7;color:#78350f}
+#msgEst small{display:block;font-weight:400;margin-top:3px}
+.humo{animation:humo 1.6s ease-out infinite;opacity:0;transform-box:fill-box;transform-origin:center}
+.humo.d2{animation-delay:.8s}
+@keyframes humo{0%{transform:translateY(0) scale(.6);opacity:.7}100%{transform:translateY(-26px) scale(1.7);opacity:0}}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#111827;color:#fff;padding:10px 16px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none;z-index:9;max-width:90vw;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔌 Protoboard TSP <span>· del esquema al montaje</span></h1>
+  <nav class="tabs" id="tabs">
+    <button data-v="doc" class="on">👩‍🏫 Docente</button>
+    <button data-v="est">🧑‍🎓 Estudiante</button>
+  </nav>
+</header>
+
+<main>
+<!-- ===================== DOCENTE ===================== -->
+<section id="v-doc" class="vista on">
+  <div class="card">
+    <div class="barra">
+      <input type="text" id="titulo" placeholder="Título del ejercicio">
+      <div class="grupo"><b>Agregar</b>
+        <button class="btn" data-add="actuador">Ⓐ Actuador</button>
+        <button class="btn" data-add="bateria">⚡ Batería</button>
+        <button class="btn" data-add="interruptor">⏻ Interruptor</button>
+        <button class="btn" data-add="resistencia">〰 Resistencia</button>
+      </div>
+      <div class="grupo"><b>Cable</b>
+        <button class="sw on" data-cc="rojo" style="background:#e02424" title="Rojo"></button>
+        <button class="sw" data-cc="negro" style="background:#222" title="Negro"></button>
+        <button class="sw" data-cc="azul" style="background:#1e5bd8" title="Azul"></button>
+      </div>
+      <div class="grupo"><b>Herramienta</b>
+        <button class="btn on" data-th="mover">✥ Mover / conectar</button>
+        <button class="btn" data-th="borrar">🗑 Borrar</button>
+        <button class="btn" id="btnRotar">⟳ Rotar (R)</button>
+      </div>
+    </div>
+    <p class="ayuda">Arrastra desde un punto de conexión hasta otro para crear un cable. Si lo sueltas en un espacio vacío se crea un <b>nodo de unión</b> (útil para ramas en paralelo). Clic sobre un elemento para seleccionarlo y moverlo. Clic sobre un cable para cambiar su doblez. <b>R</b> rota y <b>Supr</b> elimina el elemento seleccionado.</p>
+  </div>
+  <svg id="svgEsq" viewBox="0 0 1000 560"></svg>
+  <div class="card" style="margin-top:12px">
+    <div class="barra">
+      <button class="btn" id="btnNuevo">📄 Nuevo</button>
+      <button class="btn" id="btnGuardar">💾 Guardar</button>
+      <select id="lista"></select>
+      <button class="btn" id="btnCargar">📂 Abrir</button>
+      <button class="btn pel" id="btnQuitar">✕ Quitar</button>
+      <button class="btn pri" id="btnEnlace">🔗 Copiar enlace para estudiantes</button>
+      <button class="btn" id="btnProbar">▶ Probar como estudiante</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ESTUDIANTE ===================== -->
+<section id="v-est" class="vista">
+  <div class="card" id="panelEsq">
+    <h2 id="tituloEj">Práctica libre</h2>
+    <svg id="svgVer"></svg>
+  </div>
+  <div class="card">
+    <div class="barra">
+      <div class="grupo"><b>Cable</b>
+        <button class="sw" data-ce="rojo" style="background:#e02424" title="Cable rojo"></button>
+        <button class="sw" data-ce="negro" style="background:#222" title="Cable negro"></button>
+        <button class="sw" data-ce="azul" style="background:#1e5bd8" title="Cable azul"></button>
+      </div>
+      <div class="grupo"><b>LED</b>
+        <button class="sw" data-cl="rojo" style="background:#ff2d2d" title="LED rojo"></button>
+        <button class="sw" data-cl="verde" style="background:#22c55e" title="LED verde"></button>
+        <button class="sw" data-cl="azul" style="background:#3b82f6" title="LED azul"></button>
+        <button class="sw" data-cl="amarillo" style="background:#facc15" title="LED amarillo"></button>
+        <button class="sw" data-cl="blanco" style="background:#f1f5f9" title="LED blanco"></button>
+      </div>
+      <div class="grupo"><b>Piezas</b>
+        <button class="btn" data-he="res">〰 Resistencia</button>
+        <button class="btn" data-he="sw">⏻ Interruptor</button>
+      </div>
+      <div class="grupo"><b>Acciones</b>
+        <button class="btn" data-he="mano">✋ Mano</button>
+        <button class="btn" data-he="borrar">🗑 Borrar</button>
+        <button class="btn" id="btnDeshacer" title="Deshacer">↶</button>
+        <button class="btn pel" id="btnLimpiar">Limpiar</button>
+      </div>
+      <button class="btn pri" id="btnSimular">▶ Simular</button>
+    </div>
+    <p class="ayuda" id="ayudaEst"></p>
+  </div>
+  <svg id="svgBoard" viewBox="0 0 860 460"></svg>
+  <div id="msgEst"></div>
+</section>
+</main>
+<div id="toast"></div>
+
+<script>
+/* ========== Utilidades ========== */
+const NS='http://www.w3.org/2000/svg';
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e;}
+function pt(svg,ev){const p=svg.createSVGPoint();p.x=ev.clientX;p.y=ev.clientY;return p.matrixTransform(svg.getScreenCTM().inverse());}
+let _n=0;const uid=p=>p+(++_n).toString(36)+Math.random().toString(36).slice(2,5);
+const clon=o=>JSON.parse(JSON.stringify(o));
+const COLOR_CABLE={rojo:'#e02424',negro:'#222222',azul:'#1e5bd8'};
+const COLOR_LED={rojo:'#ff2d2d',verde:'#22c55e',azul:'#3b82f6',amarillo:'#facc15',blanco:'#f1f5f9'};
+let _tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('on'),2800);}
+
+/* ========== ESQUEMA (docente) ========== */
+const TERM={actuador:[[-40,0],[40,0]],bateria:[[-40,0],[40,0]],interruptor:[[-40,0],[40,0]],resistencia:[[-40,0],[40,0]],nodo:[[0,0]]};
+function rotP(x,y,r){r=((r%4)+4)%4;return r===0?[x,y]:r===1?[-y,x]:r===2?[-x,-y]:[y,-x];}
+function posTerm(e,t){const d=TERM[e.tipo][t];const q=rotP(d[0],d[1],e.rot||0);return [e.x+q[0],e.y+q[1]];}
+const snap=v=>Math.round(v/20)*20;
+
+function dibujarElem(svg,e,esSel){
+  const r=e.rot||0;
+  const g=el('g',{transform:`translate(${e.x},${e.y}) rotate(${r*90})`,'data-id':e.id,class:'elem'+(esSel?' sel':'')},svg);
+  const L=(x1,y1,x2,y2)=>el('line',{x1,y1,x2,y2,stroke:'#2d3748','stroke-width':2.5,'stroke-linecap':'round'},g);
+  const T=(x,y,txt,col,fs)=>{const t=el('text',{transform:`translate(${x},${y}) rotate(${-r*90})`,'text-anchor':'middle','dominant-baseline':'central','font-size':fs||15,'font-weight':800,fill:col||'#2d3748','font-family':'system-ui,sans-serif'},g);t.textContent=txt;};
+  const P=(x,y,col)=>el('circle',{cx:x,cy:y,r:5,fill:col,stroke:'#fff','stroke-width':1.5},g);
+  if(e.tipo==='nodo'){el('circle',{cx:0,cy:0,r:12,fill:'transparent',class:'hit'},g);el('circle',{cx:0,cy:0,r:5,fill:'#2d3748'},g);return;}
+  el('rect',{x:-48,y:-30,width:96,height:60,rx:8,fill:'transparent',class:'hit'},g);
+  if(e.tipo==='actuador'){
+    L(-40,0,-22,0);L(22,0,40,0);
+    el('circle',{cx:0,cy:0,r:22,fill:'#fff',stroke:'#2d3748','stroke-width':2.5},g);
+    T(0,0,'A','#2d3748',22);T(-32,-14,'+','#e02424');T(32,-14,'−','#222');
+    P(-40,0,'#e02424');P(40,0,'#222');
+  }else if(e.tipo==='bateria'){
+    L(-40,0,-22,0);L(22,0,40,0);
+    el('rect',{x:-22,y:-15,width:44,height:30,rx:4,fill:'#fff7d6',stroke:'#2d3748','stroke-width':2.5},g);
+    el('path',{d:'M3,-11 L-7,2 L-1,2 L-4,11 L7,-3 L1,-3 Z',fill:'#f5b400',stroke:'#2d3748','stroke-width':1.2,'stroke-linejoin':'round'},g);
+    T(-32,-14,'+','#e02424');T(32,-14,'−','#222');
+    P(-40,0,'#e02424');P(40,0,'#222');
+  }else if(e.tipo==='interruptor'){
+    L(-40,0,-18,0);L(18,0,40,0);
+    el('line',{x1:-18,y1:0,x2:15,y2:-17,stroke:'#2d3748','stroke-width':2.5,'stroke-linecap':'round'},g);
+    el('circle',{cx:-18,cy:0,r:3.5,fill:'#fff',stroke:'#2d3748','stroke-width':2},g);
+    el('circle',{cx:18,cy:0,r:3.5,fill:'#fff',stroke:'#2d3748','stroke-width':2},g);
+    P(-40,0,'#64748b');P(40,0,'#64748b');
+  }else if(e.tipo==='resistencia'){
+    L(-40,0,-24,0);L(24,0,40,0);
+    el('polyline',{points:'-24,0 -20,-8 -12,8 -4,-8 4,8 12,-8 20,8 24,0',fill:'none',stroke:'#2d3748','stroke-width':2.5,'stroke-linejoin':'round'},g);
+    P(-40,0,'#64748b');P(40,0,'#64748b');
+  }
+}
+
+function dibujarEsquema(svg,d,editable,selId){
+  svg.innerHTML='';
+  if(editable){
+    const defs=el('defs',{},svg);
+    const pat=el('pattern',{id:'cuadricula',width:20,height:20,x:-10,y:-10,patternUnits:'userSpaceOnUse'},defs);
+    el('circle',{cx:10,cy:10,r:1.1,fill:'#cfd6e3'},pat);
+    el('rect',{x:0,y:0,width:1000,height:560,fill:'url(#cuadricula)'},svg);
+  }
+  const buscar=id=>d.elementos.find(e=>e.id===id);
+  d.cables.forEach(c=>{
+    const A=buscar(c.a.el),B=buscar(c.b.el);if(!A||!B)return;
+    const [x1,y1]=posTerm(A,c.a.t),[x2,y2]=posTerm(B,c.b.t);
+    const dd=c.codo?`M${x1},${y1} V${y2} H${x2}`:`M${x1},${y1} H${x2} V${y2}`;
+    const g=el('g',{'data-cid':c.id,style:editable?'cursor:pointer':''},svg);
+    if(editable)el('path',{d:dd,stroke:'transparent','stroke-width':14,fill:'none'},g);
+    el('path',{d:dd,stroke:COLOR_CABLE[c.color]||'#222','stroke-width':3.5,fill:'none','stroke-linejoin':'round','stroke-linecap':'round'},g);
+  });
+  d.elementos.forEach(e=>dibujarElem(svg,e,e.id===selId));
+}
+
+/* Codificación compacta para el enlace */
+const TIPOS=['actuador','bateria','interruptor','resistencia','nodo'];
+const COLS=['rojo','negro','azul'];
+function codificar(d){
+  const idx={};d.elementos.forEach((e,i)=>idx[e.id]=i);
+  const o={t:d.titulo,e:d.elementos.map(e=>[TIPOS.indexOf(e.tipo),Math.round(e.x),Math.round(e.y),e.rot||0]),
+    c:d.cables.map(c=>[idx[c.a.el],c.a.t,idx[c.b.el],c.b.t,COLS.indexOf(c.color),c.codo||0])};
+  return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decodificar(s){
+  s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';
+  const o=JSON.parse(decodeURIComponent(escape(atob(s))));
+  return {titulo:o.t||'',
+    elementos:o.e.map((a,i)=>({id:'e'+i,tipo:TIPOS[a[0]],x:a[1],y:a[2],rot:a[3]})),
+    cables:o.c.map((a,i)=>({id:'c'+i,a:{el:'e'+a[0],t:a[1]},b:{el:'e'+a[2],t:a[3]},color:COLS[a[4]],codo:a[5]}))};
+}
+
+/* Estado del editor */
+let esq={titulo:'',elementos:[],cables:[]};
+let sel=null,herrDoc='mover',colorDoc='rojo',dragD=null,tempD=null;
+const svgEsq=$('#svgEsq');
+function renderEditor(){dibujarEsquema(svgEsq,esq,true,sel);}
+function elemPorId(id){return esq.elementos.find(e=>e.id===id);}
+function terminalEn(p){
+  let best=null,bd=12;
+  esq.elementos.forEach(e=>TERM[e.tipo].forEach((_,t)=>{const [x,y]=posTerm(e,t);const d=Math.hypot(x-p.x,y-p.y);if(d<bd){bd=d;best={el:e.id,t};}}));
+  return best;
+}
+function borrarElem(id){esq.elementos=esq.elementos.filter(e=>e.id!==id);esq.cables=esq.cables.filter(c=>c.a.el!==id&&c.b.el!==id);if(sel===id)sel=null;}
+function rotarSel(){
+  if(!sel)return toast('Haz clic sobre un elemento para seleccionarlo y luego rótalo.');
+  const e=elemPorId(sel);if(e&&e.tipo!=='nodo'){e.rot=((e.rot||0)+1)%4;renderEditor();}
+}
+
+svgEsq.addEventListener('pointerdown',ev=>{
+  const p=pt(svgEsq,ev);
+  if(herrDoc==='borrar'){
+    const c=ev.target.closest('[data-cid]');
+    if(c){esq.cables=esq.cables.filter(x=>x.id!==c.dataset.cid);renderEditor();return;}
+    const g=ev.target.closest('[data-id]');
+    if(g){borrarElem(g.dataset.id);renderEditor();}
+    return;
+  }
+  const t=terminalEn(p);
+  if(t){
+    const [sx,sy]=posTerm(elemPorId(t.el),t.t);
+    dragD={tipo:'cable',desde:t,sx,sy};
+    tempD=el('path',{d:`M${sx},${sy}`,stroke:COLOR_CABLE[colorDoc],'stroke-width':3,'stroke-dasharray':'6 5',fill:'none','pointer-events':'none'},svgEsq);
+    svgEsq.setPointerCapture(ev.pointerId);return;
+  }
+  const g=ev.target.closest('[data-id]');
+  if(g){
+    const e=elemPorId(g.dataset.id);sel=e.id;
+    dragD={tipo:'mover',e,dx:p.x-e.x,dy:p.y-e.y};
+    svgEsq.setPointerCapture(ev.pointerId);renderEditor();return;
+  }
+  const c=ev.target.closest('[data-cid]');
+  if(c){const w=esq.cables.find(x=>x.id===c.dataset.cid);if(w){w.codo=w.codo?0:1;renderEditor();}return;}
+  sel=null;renderEditor();
+});
+svgEsq.addEventListener('pointermove',ev=>{
+  if(!dragD)return;
+  const p=pt(svgEsq,ev);
+  if(dragD.tipo==='mover'){
+    const nx=Math.max(40,Math.min(960,snap(p.x-dragD.dx))),ny=Math.max(40,Math.min(520,snap(p.y-dragD.dy)));
+    if(nx!==dragD.e.x||ny!==dragD.e.y){dragD.e.x=nx;dragD.e.y=ny;renderEditor();}
+  }else{
+    const t=terminalEn(p);let x=p.x,y=p.y;
+    if(t){[x,y]=posTerm(elemPorId(t.el),t.t);}
+    tempD.setAttribute('d',`M${dragD.sx},${dragD.sy} H${x} V${y}`);
+  }
+});
+svgEsq.addEventListener('pointerup',ev=>{
+  if(!dragD)return;
+  if(dragD.tipo==='cable'){
+    const p=pt(svgEsq,ev);const t2=terminalEn(p);const o=dragD.desde;
+    if(t2){
+      if(!(t2.el===o.el&&t2.t===o.t))esq.cables.push({id:uid('c'),a:o,b:t2,color:colorDoc,codo:0});
+    }else if(Math.hypot(p.x-dragD.sx,p.y-dragD.sy)>15){
+      const n={id:uid('n'),tipo:'nodo',x:snap(p.x),y:snap(p.y),rot:0};
+      esq.elementos.push(n);
+      esq.cables.push({id:uid('c'),a:o,b:{el:n.id,t:0},color:colorDoc,codo:0});
+    }
+  }
+  dragD=null;tempD=null;renderEditor();
+});
+svgEsq.addEventListener('pointercancel',()=>{dragD=null;tempD=null;renderEditor();});
+
+$$('[data-add]').forEach(b=>b.onclick=()=>{
+  const n=esq.elementos.filter(e=>e.tipo!=='nodo').length;
+  const e={id:uid('e'),tipo:b.dataset.add,x:snap(160+(n%6)*140),y:snap(120+(Math.floor(n/6)%4)*110),rot:0};
+  esq.elementos.push(e);sel=e.id;renderEditor();
+});
+$$('[data-cc]').forEach(b=>b.onclick=()=>{colorDoc=b.dataset.cc;$$('[data-cc]').forEach(x=>x.classList.toggle('on',x===b));});
+$$('[data-th]').forEach(b=>b.onclick=()=>{herrDoc=b.dataset.th;$$('[data-th]').forEach(x=>x.classList.toggle('on',x===b));svgEsq.style.cursor=herrDoc==='borrar'?'pointer':'crosshair';});
+$('#btnRotar').onclick=rotarSel;
+$('#titulo').oninput=e=>esq.titulo=e.target.value;
+
+/* Lista de ejercicios guardados (en este navegador) */
+const LS='tsp_protoboard_ejercicios';
+function leerLista(){try{return JSON.parse(localStorage.getItem(LS))||[];}catch(e){return [];}}
+function escribirLista(l){try{localStorage.setItem(LS,JSON.stringify(l));}catch(e){toast('No se pudo guardar en este navegador.');}}
+function refrescarLista(selT){
+  const s=$('#lista');const l=leerLista();
+  s.innerHTML=l.length?'':'<option value="">(sin ejercicios guardados)</option>';
+  l.forEach((x,i)=>{const o=document.createElement('option');o.value=i;o.textContent=x.titulo;if(x.titulo===selT)o.selected=true;s.appendChild(o);});
+}
+function ponerEsquema(d){esq=d;sel=null;$('#titulo').value=esq.titulo;renderEditor();}
+$('#btnGuardar').onclick=()=>{
+  const t=(esq.titulo||'').trim();
+  if(!t)return toast('Escribe un título para el ejercicio.');
+  if(!esq.elementos.length)return toast('El esquema está vacío.');
+  const l=leerLista();const i=l.findIndex(x=>x.titulo===t);const item={titulo:t,codigo:codificar(esq)};
+  if(i>=0)l[i]=item;else l.push(item);
+  escribirLista(l);refrescarLista(t);toast('Ejercicio guardado ✔');
+};
+$('#btnCargar').onclick=()=>{const v=$('#lista').value;if(v==='')return;const it=leerLista()[+v];if(it)ponerEsquema(decodificar(it.codigo));};
+$('#btnQuitar').onclick=()=>{
+  const v=$('#lista').value;if(v==='')return;const l=leerLista();
+  if(!confirm('¿Quitar "'+l[+v].titulo+'" de la lista?'))return;
+  l.splice(+v,1);escribirLista(l);refrescarLista();
+};
+$('#btnNuevo').onclick=()=>{if(esq.elementos.length&&!confirm('¿Empezar un esquema nuevo? Lo que no hayas guardado se perderá.'))return;ponerEsquema({titulo:'',elementos:[],cables:[]});};
+$('#btnEnlace').onclick=()=>{
+  if(!esq.elementos.length)return toast('El esquema está vacío.');
+  const url=location.href.split('#')[0]+'#ej='+codificar(esq);
+  if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast('Enlace copiado ✔ Compártelo con tus estudiantes.')).catch(()=>prompt('Copia este enlace:',url));
+  else prompt('Copia este enlace:',url);
+};
+$('#btnProbar').onclick=()=>{cargarVista(clon(esq));invalidar();renderB();verModo('est');};
+document.addEventListener('keydown',ev=>{
+  if(modo!=='doc'||alumnoFijo)return;
+  if(/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))return;
+  if(ev.key==='r'||ev.key==='R')rotarSel();
+  else if((ev.key==='Delete'||ev.key==='Backspace')&&sel){ev.preventDefault();borrarElem(sel);renderEditor();}
+});
+
+/* ========== PROTOBOARD (estudiante) ========== */
+const S=22,NC=30,X0=178;
+const RAIL={TP:42,TN:64,BP:394,BN:416};
+const FILAS='abcdefghij';
+const filaY=i=>i<5?112+i*S:252+(i-5)*S;
+const HOLES=[],HBY={},HEL={};
+function addH(id,x,y,net){const h={id,x,y,net};HOLES.push(h);HBY[id]=h;}
+for(let c=0;c<NC;c++){
+  for(const k in RAIL)addH(k+c,X0+c*S,RAIL[k],k);
+  for(let i=0;i<10;i++)addH(FILAS[i]+(c+1),X0+c*S,filaY(i),(i<5?'S':'I')+c);
+}
+addH('BAT+',55,170,'BAT+');addH('BAT-',95,170,'BAT-');
+
+const svgB=$('#svgBoard');
+let gP,gT;
+const est={piezas:[],sim:null,simulando:false};
+
+function txtB(x,y,t,col,fs,parent){const e=el('text',{x,y,'text-anchor':'middle','dominant-baseline':'central','font-size':fs||11,'font-weight':700,fill:col||'#9ca3af','font-family':'system-ui,sans-serif'},parent||svgB);e.textContent=t;return e;}
+
+function construirBoard(){
+  const defs=el('defs',{},svgB);
+  const f=el('filter',{id:'brillo',x:'-100%',y:'-100%',width:'300%',height:'300%'},defs);el('feGaussianBlur',{stdDeviation:5},f);
+  const sh=el('filter',{id:'sombra',x:'-5%',y:'-5%',width:'110%',height:'115%'},defs);el('feDropShadow',{dx:0,dy:3,stdDeviation:4,'flood-opacity':.18},sh);
+  // Batería
+  el('rect',{x:25,y:185,width:100,height:170,rx:12,fill:'#2b2f3a',filter:'url(#sombra)'},svgB);
+  el('rect',{x:25,y:185,width:100,height:32,rx:12,fill:'#3a4050'},svgB);
+  el('path',{d:'M82,238 L62,286 L77,286 L68,325 L94,270 L79,270 Z',fill:'#facc15'},svgB);
+  txtB(75,340,'BATERÍA','#e5e7eb',11);
+  [[55,'#e02424','#7f1d1d','+'],[95,'#222','#000','−']].forEach(([x,c,b,s])=>{
+    el('rect',{x:x-8,y:170,width:16,height:16,fill:'#9ca3af'},svgB);
+    el('circle',{cx:x,cy:170,r:9,fill:c,stroke:b,'stroke-width':2},svgB);
+    el('circle',{cx:x,cy:170,r:2.8,fill:'#fff'},svgB);
+    txtB(x,150,s,c==='#222'?'#111':c,18);
+  });
+  // Protoboard
+  el('rect',{x:150,y:22,width:690,height:416,rx:10,fill:'#fbfbf8',stroke:'#d9dcd2',filter:'url(#sombra)'},svgB);
+  el('rect',{x:156,y:214,width:678,height:24,rx:3,fill:'#eceee6'},svgB);
+  [[31,'#e02424'],[75,'#1e5bd8'],[383,'#e02424'],[427,'#1e5bd8']].forEach(([y,c])=>el('line',{x1:168,y1:y,x2:826,y2:y,stroke:c,'stroke-width':2},svgB));
+  [[42,'+','#e02424'],[64,'−','#1e5bd8'],[394,'+','#e02424'],[416,'−','#1e5bd8']].forEach(([y,s,c])=>{txtB(162,y,s,c,15);txtB(830,y,s,c,15);});
+  for(let c=0;c<NC;c++)if(c===0||(c+1)%5===0){txtB(X0+c*S,94,c+1);txtB(X0+c*S,362,c+1);}
+  for(let i=0;i<10;i++){txtB(162,filaY(i),FILAS[i]);txtB(830,filaY(i),FILAS[i]);}
+  HOLES.forEach(h=>{if(h.id.startsWith('BAT'))return;HEL[h.id]=el('rect',{x:h.x-4,y:h.y-4,width:8,height:8,rx:1.5,class:'hole'},svgB);});
+  gP=el('g',{},svgB);gT=el('g',{'pointer-events':'none'},svgB);
+}
+
+function agujeroEn(p,conBat){
+  let best=null,bd=1e9;
+  for(const h of HOLES){
+    const bat=h.id.startsWith('BAT');if(bat&&!conBat)continue;
+    const d=Math.hypot(h.x-p.x,h.y-p.y);
+    if(d<(bat?18:11)&&d<bd){best=h;bd=d;}
+  }
+  return best;
+}
+const ocupado=id=>!id.startsWith('BAT')&&est.piezas.some(p=>p.a===id||p.b===id);
+let netHL=null;
+function resaltar(net){
+  if(net===netHL)return;
+  $$('.hole.hl').forEach(r=>r.classList.remove('hl'));
+  netHL=net;if(!net)return;
+  HOLES.forEach(h=>{if(h.net===net&&HEL[h.id])HEL[h.id].classList.add('hl');});
+}
+
+function renderB(){
+  gP.innerHTML='';
+  const sim=est.sim;
+  if(sim&&sim.corto){
+    el('rect',{x:21,y:181,width:108,height:178,rx:14,fill:'none',stroke:'#dc2626','stroke-width':3},gP);
+    txtB(75,374,'¡CORTO!','#dc2626',13,gP);
+  }
+  const orden=[...est.piezas].sort((a,b)=>(a.tipo!=='cable')-(b.tipo!=='cable'));
+  orden.forEach(p=>{
+    const A=HBY[p.a],B=HBY[p.b];
+    const g=el('g',{'data-pid':p.id,class:'pieza'},gP);
+    if(p.tipo==='cable'){
+      const d=Math.hypot(B.x-A.x,B.y-A.y);
+      const cx=(A.x+B.x)/2,cy=(A.y+B.y)/2-Math.min(40,8+d*0.18);
+      const dd=`M${A.x},${A.y} Q${cx},${cy} ${B.x},${B.y}`;
+      el('path',{d:dd,stroke:'transparent','stroke-width':14,fill:'none'},g);
+      el('path',{d:dd,stroke:'rgba(0,0,0,.22)','stroke-width':6.5,fill:'none','stroke-linecap':'round',transform:'translate(1,2)'},g);
+      el('path',{d:dd,stroke:COLOR_CABLE[p.color],'stroke-width':4.5,fill:'none','stroke-linecap':'round'},g);
+      [A,B].forEach(h=>el('circle',{cx:h.x,cy:h.y,r:3.2,fill:'#9ca3af',stroke:COLOR_CABLE[p.color],'stroke-width':1.5},g));
+      return;
+    }
+    el('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,stroke:'transparent','stroke-width':16},g);
+    el('line',{x1:A.x,y1:A.y,x2:B.x,y2:B.y,stroke:'#a0a8b3','stroke-width':2.6,'stroke-linecap':'round'},g);
+    [A,B].forEach(h=>el('circle',{cx:h.x,cy:h.y,r:2.6,fill:'#6b7280'},g));
+    const mx=(A.x+B.x)/2,my=(A.y+B.y)/2,ang=Math.atan2(B.y-A.y,B.x-A.x)*180/Math.PI;
+    const c=el('g',{transform:`translate(${mx},${my}) rotate(${ang})`},g);
+    if(p.tipo==='res'){
+      el('rect',{x:-15,y:-5.5,width:30,height:11,rx:5,fill:'#e9d3a3',stroke:'#a8895a','stroke-width':1},c);
+      [[-9,'#c0392b'],[-4,'#c0392b'],[1,'#7b4a1e'],[9,'#c9a227']].forEach(([x,col])=>el('rect',{x,y:-5.5,width:2.6,height:11,fill:col},c));
+    }else if(p.tipo==='sw'){
+      el('rect',{x:-14,y:-10,width:28,height:20,rx:4,fill:'#334155',stroke:'#0f172a'},c);
+      el('rect',{x:-9,y:-4,width:18,height:8,rx:4,fill:'#0f172a'},c);
+      el('circle',{cx:p.on?5:-5,cy:0,r:5.5,fill:p.on?'#22c55e':'#ef4444',stroke:'#fff','stroke-width':1.2},c);
+      const t=el('text',{x:0,y:0,transform:`rotate(${-ang}) translate(0,-17)`,'text-anchor':'middle','dominant-baseline':'central','font-size':9,'font-weight':800,fill:p.on?'#15803d':'#b91c1c'},c);
+      t.textContent=p.on?'ON':'OFF';
+    }else if(p.tipo==='led'){
+      const col=COLOR_LED[p.color];
+      const on=sim&&sim.lit.has(p.id),qm=sim&&sim.burn.has(p.id);
+      if(on)el('circle',{cx:0,cy:0,r:20,fill:col,opacity:.8,filter:'url(#brillo)'},c);
+      el('circle',{cx:0,cy:0,r:10,fill:qm?'#4b5563':col,'fill-opacity':(on||qm)?1:.45,stroke:qm?'#111827':'rgba(0,0,0,.35)','stroke-width':1.3},c);
+      if(!qm)el('circle',{cx:-3.5,cy:-3.5,r:2.6,fill:'#fff',opacity:on?.95:.6},c);
+      if(on)el('circle',{cx:0,cy:0,r:5,fill:'#fff',opacity:.7},c);
+      if(qm){
+        const x=el('text',{x:0,y:0,'text-anchor':'middle','dominant-baseline':'central','font-size':12,'font-weight':900,fill:'#fff'},c);x.textContent='✕';
+        el('circle',{cx:mx,cy:my-12,r:5,fill:'#6b7280',class:'humo'},g);
+        el('circle',{cx:mx+3,cy:my-12,r:5,fill:'#9ca3af',class:'humo d2'},g);
+      }
+      const Ln=Math.hypot(B.x-A.x,B.y-A.y)||1,ux=(B.x-A.x)/Ln,uy=(B.y-A.y)/Ln;
+      txtB(A.x-ux*9,A.y-uy*9-7,'+','#dc2626',13,g);
+    }
+  });
+}
+
+/* ========== SIMULACIÓN ========== */
+function simular(){
+  const par=Object.create(null);
+  const find=x=>{if(!(x in par))par[x]=x;while(par[x]!==x){par[x]=par[par[x]];x=par[x];}return x;};
+  const unir=(a,b)=>{a=find(a);b=find(b);if(a!==b)par[a]=b;};
+  const net=h=>HBY[h].net;
+  const P=est.piezas;
+  P.forEach(p=>{if(p.tipo==='cable'||(p.tipo==='sw'&&p.on))unir(net(p.a),net(p.b));});
+  const R={lit:new Set(),burn:new Set(),corto:false,tipo:'',titulo:'',pistas:[]};
+  const usaBat=t=>P.some(p=>p.tipo==='cable'&&(p.a===t||p.b===t));
+  if(!usaBat('BAT+')||!usaBat('BAT-')){R.tipo='warn';R.titulo='🔋 Conecta los dos bornes de la batería (+ y −) a la protoboard con cables.';return R;}
+  const pos=find('BAT+'),neg=find('BAT-');
+  if(pos===neg){
+    R.corto=true;R.tipo='err';
+    R.titulo='⚠️ ¡Cortocircuito! El + y el − de la batería quedaron unidos directamente, sin pasar por ningún componente.';
+    R.pistas.push('Revisa que ningún cable (o interruptor cerrado) una directamente la línea + con la línea −.');
+    return R;
+  }
+  const comps=P.filter(p=>p.tipo==='led'||p.tipo==='res').map(p=>({id:p.id,tipo:p.tipo,u:find(net(p.a)),v:find(net(p.b))}));
+  const tipoDe={};comps.forEach(c=>tipoDe[c.id]=c.tipo);
+  const caminos=ledDoble=>{
+    const ady={};const add=(a,b,id)=>(ady[a]=ady[a]||[]).push({b,id});
+    comps.forEach(c=>{if(c.u===c.v)return;add(c.u,c.v,c.id);if(c.tipo==='res'||ledDoble)add(c.v,c.u,c.id);});
+    const out=[],vis=new Set([pos]),pila=[];
+    (function dfs(n){
+      if(out.length>3000)return;
+      if(n===neg){out.push(pila.slice());return;}
+      for(const e of ady[n]||[]){if(vis.has(e.b))continue;vis.add(e.b);pila.push(e.id);dfs(e.b);pila.pop();vis.delete(e.b);}
+    })(pos);
+    return out;
+  };
+  const rutas=caminos(false);
+  if(comps.some(c=>c.u===c.v&&c.tipo==='led'))R.pistas.push('Hay un LED con sus dos patas en orificios que están conectados entre sí (misma columna o unidas por un cable). Así nunca enciende.');
+  if(!rutas.length){
+    R.tipo='err';
+    R.titulo='❌ El circuito no está cerrado: la corriente no puede ir del + al − de la batería pasando por los componentes.';
+    if(P.some(p=>p.tipo==='sw'&&!p.on))R.pistas.push('Hay un interruptor abierto (OFF). Usa ✋ Mano para cerrarlo.');
+    if(caminos(true).length)R.pistas.push('Revisa la polaridad: algún LED está al revés. La pata + (larga) va hacia el positivo.');
+    if(!comps.length)R.pistas.push('Todavía no hay LED en la protoboard.');
+    return R;
+  }
+  if(rutas.length===1){
+    rutas[0].forEach(id=>{if(tipoDe[id]==='led')R.lit.add(id);});
+  }else{
+    const cnt={};rutas.forEach(r=>r.forEach(id=>cnt[id]=(cnt[id]||0)+1));
+    const comun=id=>cnt[id]===rutas.length;
+    const activos=new Set();rutas.forEach(r=>r.forEach(id=>{if(tipoDe[id]==='led')activos.add(id);}));
+    activos.forEach(id=>{
+      const malo=rutas.some(r=>r.includes(id)&&!r.some(x=>tipoDe[x]==='res'&&!comun(x)));
+      (malo?R.burn:R.lit).add(id);
+    });
+  }
+  const nLed=P.filter(p=>p.tipo==='led').length;
+  const apagados=nLed-R.lit.size-R.burn.size;
+  if(R.burn.size){
+    R.tipo='err';
+    R.titulo=`🔥 ${R.burn.size===1?'Se quemó 1 LED':'Se quemaron '+R.burn.size+' LED'}. En un montaje en paralelo cada rama debe llevar su propia resistencia.`;
+    if(R.lit.size)R.pistas.push(`${R.lit.size} LED sí encendieron porque su rama tiene resistencia.`);
+  }else if(R.lit.size){
+    R.tipo='ok';
+    R.titulo=`✅ ¡Funciona! ${R.lit.size===1?'Se encendió 1 LED':'Se encendieron '+R.lit.size+' LED'}${rutas.length>1?' (montaje en paralelo)':''}.`;
+  }else{
+    R.tipo='warn';R.titulo='La corriente circula, pero no pasa por ningún LED.';
+  }
+  if(apagados>0&&(R.lit.size||R.burn.size))R.pistas.push(`${apagados} LED no ${apagados===1?'está':'están'} en el camino de la corriente.`);
+  return R;
+}
+function mostrarMsg(r){
+  const m=$('#msgEst');
+  if(!r){m.className='';m.innerHTML='';return;}
+  m.className=r.tipo;
+  m.innerHTML=r.titulo+r.pistas.map(x=>'<small>• '+x+'</small>').join('');
+}
+function invalidar(){est.sim=null;est.simulando=false;mostrarMsg(null);}
+
+/* ========== Interacción estudiante ========== */
+let herr='cable',colCable='rojo',colLed='rojo',dragB=null;
+const AYUDA={
+  cable:'🔌 Cable: arrastra desde un orificio (o un borne de la batería) hasta otro. Pasa el mouse por un orificio: se iluminan en verde todos los que están conectados con él.',
+  led:'💡 LED: arrastra desde el orificio de la pata + (larga) hasta el de la pata − (corta). El “+” queda marcado junto al LED.',
+  res:'〰 Resistencia: arrastra de un orificio a otro (máximo 6 orificios de separación).',
+  sw:'⏻ Interruptor: arrastra de un orificio a otro. Se coloca abierto (OFF); usa ✋ Mano para cerrarlo.',
+  mano:'✋ Mano: haz clic en un interruptor para abrirlo o cerrarlo.',
+  borrar:'🗑 Borrar: haz clic sobre la pieza o el cable que quieres quitar.'
+};
+function setHerr(h){
+  herr=h;
+  $$('[data-ce]').forEach(b=>b.classList.toggle('on',h==='cable'&&b.dataset.ce===colCable));
+  $$('[data-cl]').forEach(b=>b.classList.toggle('on',h==='led'&&b.dataset.cl===colLed));
+  $$('[data-he]').forEach(b=>b.classList.toggle('on',b.dataset.he===h));
+  $('#ayudaEst').textContent=AYUDA[h];
+  svgB.style.cursor=(h==='mano'||h==='borrar')?'pointer':'crosshair';
+}
+$$('[data-ce]').forEach(b=>b.onclick=()=>{colCable=b.dataset.ce;setHerr('cable');});
+$$('[data-cl]').forEach(b=>b.onclick=()=>{colLed=b.dataset.cl;setHerr('led');});
+$$('[data-he]').forEach(b=>b.onclick=()=>setHerr(b.dataset.he));
+
+svgB.addEventListener('pointerdown',ev=>{
+  const p=pt(svgB,ev);
+  if(herr==='borrar'){
+    const g=ev.target.closest('[data-pid]');
+    if(g){est.piezas=est.piezas.filter(x=>x.id!==g.dataset.pid);invalidar();renderB();}
+    return;
+  }
+  if(herr==='mano'){
+    const g=ev.target.closest('[data-pid]');if(!g)return;
+    const pz=est.piezas.find(x=>x.id===g.dataset.pid);
+    if(pz&&pz.tipo==='sw'){pz.on=!pz.on;if(est.simulando){est.sim=simular();mostrarMsg(est.sim);}renderB();}
+    else toast('Con la mano solo se abren y cierran interruptores.');
+    return;
+  }
+  const h=agujeroEn(p,herr==='cable');if(!h)return;
+  if(ocupado(h.id))return toast('Ese orificio ya está ocupado.');
+  dragB={desde:h,linea:el('line',{x1:h.x,y1:h.y,x2:h.x,y2:h.y,stroke:herr==='cable'?COLOR_CABLE[colCable]:'#64748b','stroke-width':4,'stroke-dasharray':'6 5','stroke-linecap':'round'},gT)};
+  svgB.setPointerCapture(ev.pointerId);
+});
+svgB.addEventListener('pointermove',ev=>{
+  const p=pt(svgB,ev);const h=agujeroEn(p,true);
+  resaltar(h&&!h.id.startsWith('BAT')?h.net:null);
+  if(dragB){dragB.linea.setAttribute('x2',h?h.x:p.x);dragB.linea.setAttribute('y2',h?h.y:p.y);}
+});
+svgB.addEventListener('pointerleave',()=>{if(!dragB)resaltar(null);});
+svgB.addEventListener('pointercancel',()=>{dragB=null;gT.innerHTML='';});
+svgB.addEventListener('pointerup',ev=>{
+  if(!dragB)return;
+  const p=pt(svgB,ev);const h1=dragB.desde;const h2=agujeroEn(p,herr==='cable');
+  dragB=null;gT.innerHTML='';
+  if(!h2||h2.id===h1.id)return;
+  if(ocupado(h2.id))return toast('Ese orificio ya está ocupado.');
+  if(herr!=='cable'&&Math.hypot(h2.x-h1.x,h2.y-h1.y)>S*6+2)return toast('Las patas quedan muy separadas: máximo 6 orificios.');
+  est.piezas.push({id:uid('p'),tipo:herr,a:h1.id,b:h2.id,color:herr==='led'?colLed:colCable,on:false});
+  invalidar();renderB();
+});
+$('#btnSimular').onclick=()=>{est.simulando=true;est.sim=simular();renderB();mostrarMsg(est.sim);};
+$('#btnDeshacer').onclick=()=>{est.piezas.pop();invalidar();renderB();};
+$('#btnLimpiar').onclick=()=>{if(est.piezas.length&&!confirm('¿Quitar todas las piezas de la protoboard?'))return;est.piezas=[];invalidar();renderB();};
+
+/* ========== Modos y arranque ========== */
+let modo='doc',alumnoFijo=false;
+function verModo(m){
+  modo=m;
+  $$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===m));
+  $('#v-doc').classList.toggle('on',m==='doc');
+  $('#v-est').classList.toggle('on',m==='est');
+}
+$$('#tabs button').forEach(b=>b.onclick=()=>verModo(b.dataset.v));
+
+function cargarVista(d){
+  const svg=$('#svgVer');
+  if(!d||!d.elementos.length){$('#tituloEj').textContent='Práctica libre';svg.style.display='none';return;}
+  $('#tituloEj').textContent='📐 '+(d.titulo||'Ejercicio')+' — arma este circuito en la protoboard';
+  svg.style.display='';
+  dibujarEsquema(svg,d,false,null);
+  let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9;
+  d.elementos.forEach(e=>{x1=Math.min(x1,e.x);y1=Math.min(y1,e.y);x2=Math.max(x2,e.x);y2=Math.max(y2,e.y);});
+  const m=60;svg.setAttribute('viewBox',`${x1-m} ${y1-m} ${x2-x1+2*m} ${y2-y1+2*m}`);
+}
+
+function ejemplo(){
+  const b={id:uid('e'),tipo:'bateria',x:160,y:280,rot:1},s={id:uid('e'),tipo:'interruptor',x:300,y:200,rot:0},
+        r={id:uid('e'),tipo:'resistencia',x:460,y:200,rot:0},a={id:uid('e'),tipo:'actuador',x:600,y:280,rot:1};
+  return {titulo:'Ejercicio 1 — Circuito en serie',elementos:[b,s,r,a],cables:[
+    {id:uid('c'),a:{el:b.id,t:0},b:{el:s.id,t:0},color:'rojo',codo:1},
+    {id:uid('c'),a:{el:s.id,t:1},b:{el:r.id,t:0},color:'rojo',codo:0},
+    {id:uid('c'),a:{el:r.id,t:1},b:{el:a.id,t:0},color:'rojo',codo:0},
+    {id:uid('c'),a:{el:a.id,t:1},b:{el:b.id,t:1},color:'negro',codo:0}]};
+}
+
+(function init(){
+  construirBoard();setHerr('cable');refrescarLista();
+  const m=location.hash.match(/ej=([^&]+)/);
+  if(m){
+    try{const d=decodificar(m[1]);alumnoFijo=true;$('#tabs').style.display='none';cargarVista(d);verModo('est');}
+    catch(e){toast('El enlace del ejercicio no es válido.');}
+  }
+  if(!alumnoFijo){ponerEsquema(ejemplo());cargarVista(null);}
+  renderB();
+})();
+</script>
+</body>
+</html>
+Para publicarla en GitHub Pages
+
+Crea un repositorio, por ejemplo protoboard-tsp, y sube este archivo con el nombre index.html.
+Ve a Settings → Pages, elige la rama main y la carpeta / (root), y guarda.
+Tú entras a https://tu-usuario.github.io/protoboard-tsp/, diseñas el esquema y presionas Copiar enlace para estudiantes.
+El esquema completo va dentro del enlace, así que no necesitas servidor ni base de datos. Al abrirlo, el estudiante entra directo a la protoboard, sin la pestaña Docente. Cada ejercicio es un enlace distinto que puedes pegar en tu plataforma o en el grupo.
+
+Ten en cuenta que el botón Guardar solo conserva la lista en tu navegador. Lo que realmente compartes son los enlaces.
+
+Un siguiente paso posible: que al simular la app compare el montaje con el esquema. Por ejemplo, que verifique que el número de LED y la configuración serie o paralelo coincidan con lo que pediste, y no solo que el circuito funcione.
+
+
+
+
+
+Claude es una IA y puede cometer errores.
+Claude terminó la respuesta
