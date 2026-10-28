@@ -1,3 +1,67 @@
+Claude
+MacBook Air de Hansel, Conectado
+Checking the browser cache after the deployment.
+Checking the browser cache after the deployment.
+El archivo ya está bien: la línea 1 es <!DOCTYPE html> y la publicación salió con ✅ hace 3 minutos. El problema es solo de caché. GitHub Pages hace que los navegadores guarden cada página hasta 10 minutos, así que Brave te sigue mostrando la versión vieja.
+
+Cualquiera de estas opciones lo resuelve:
+
+La más rápida: entra a artifextsp.github.io/pro/?v=2. El ?v=2 obliga a pedir una copia nueva. Si lo vuelves a cambiar en el futuro, usa ?v=3, ?v=4, etc.
+Recarga forzada: en la página, presiona Cmd + Shift + R.
+Ventana privada: abre una con Cmd + Shift + N y carga la dirección ahí.
+Esperar: en unos 10 minutos se actualiza sola.
+Tus estudiantes no tendrán este problema, porque abrirán la página por primera vez y les llega la versión nueva.
+
+Captura de pantalla 2026-10-27 a las 9.17.22p.m. 2.png
+el boton abrir no hace nada
+
+Probando Nuevo y luego Abrir para verificar
+El botón Abrir sí funciona. Lo que pasa es que en tu lista solo hay un ejercicio guardado, “Ejercicio 1 — Circuito en serie”, y es el mismo que ya tienes en pantalla. Al abrirlo, carga exactamente el mismo esquema y no se nota ningún cambio.
+
+Para comprobarlo, presiona Nuevo (el lienzo queda vacío) y luego Abrir: debe volver a aparecer el circuito.
+
+Igual tienes razón en que el botón no da ninguna señal de que hizo algo. Con este cambio muestra un aviso al abrir, y además pregunta antes de reemplazar un esquema que no hayas guardado.
+
+En tu index.html busca esta línea:
+
+js
+$('#btnCargar').onclick=()=>{const v=$('#lista').value;if(v==='')return;const it=leerLista()[+v];if(it)ponerEsquema(decodificar(it.codigo));};
+y reemplázala completa por esto:
+
+js
+function abrirSeleccionado(){
+  const v=$('#lista').value;
+  if(v==='')return toast('Todavía no hay ejercicios guardados.');
+  const it=leerLista()[+v];if(!it)return;
+  if(esq.elementos.length&&codificar(esq)!==it.codigo&&!confirm('¿Abrir "'+it.titulo+'"? Los cambios sin guardar del esquema actual se perderán.'))return;
+  ponerEsquema(decodificar(it.codigo));
+  toast('📂 Abierto: '+it.titulo);
+}
+$('#btnCargar').onclick=abrirSeleccionado;
+Ya que vas a editar, aprovecha para un ajuste más: el campo del título se ve cortado (“Ejercicio 1 — Circuito e”). Para que se vea completo, busca en el CSS:
+
+css
+input[type=text],select{padding:7px 9px;border:1px solid var(--bd);border-radius:8px;font-size:.9rem}
+y debajo agrega esta línea:
+
+css
+#titulo{min-width:280px;flex:1}
+Después del commit, recuerda entrar con ?v=3 al final del enlace para saltarte la caché.
+
+genera el codigo de nuevo asegurate de que guarde los esquemas y que luego los pueda abrir yo
+
+Writing the save and reload code for the exercise list
+Aquí está el código completo con el guardado reforzado. Estos son los cambios:
+
+💾 Guardar: si no le pusiste título, te lo pide. Si ya existe un ejercicio con ese nombre, pregunta antes de reemplazarlo. Al terminar confirma con un aviso.
+📂 Abrir: carga el ejercicio elegido en la lista, avisa que lo abrió y pregunta antes de reemplazar un esquema con cambios sin guardar.
+Indicador de estado: junto a los botones verás “✔ Guardado” o “● Cambios sin guardar”.
+Borrador automático: si cierras o recargas la página, el esquema en el que estabas trabajando sigue ahí.
+⬇ Descargar / ⬆ Cargar copia de seguridad: los ejercicios se guardan en el navegador. Con este archivo .json los pasas a otro computador o los respaldas por si borras los datos del navegador.
+El campo del título ahora se ve completo.
+Una advertencia: no guardes ejercicios desde una ventana privada, porque Brave borra todo al cerrarla.
+
+html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -27,9 +91,14 @@ main{max-width:1100px;margin:0 auto;padding:14px}
 .sw{width:24px;height:24px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #9ca3af;cursor:pointer;padding:0}
 .sw.on{box-shadow:0 0 0 3px var(--ac)}
 input[type=text],select{padding:7px 9px;border:1px solid var(--bd);border-radius:8px;font-size:.9rem}
+#titulo{min-width:280px;flex:1}
+#lista{min-width:220px;max-width:340px}
 svg{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none}
 #svgEsq{background:#fff;border:1px solid var(--bd);border-radius:10px;cursor:crosshair}
 .ayuda{font-size:.85rem;color:var(--mut);margin:8px 2px 0;line-height:1.4}
+#estado{font-size:.85rem;font-weight:600;padding:4px 10px;border-radius:20px}
+#estado.ok{background:#dcfce7;color:#166534}
+#estado.pend{background:#fef3c7;color:#92400e}
 .elem{cursor:move}
 .elem.sel .hit{stroke:#7c3aed;stroke-dasharray:5 4;stroke-width:1.5;fill:rgba(124,58,237,.06)}
 #panelEsq h2{margin:0 0 6px;font-size:1rem}
@@ -84,17 +153,28 @@ svg{display:block;width:100%;height:auto;touch-action:none;user-select:none;-web
     </div>
     <p class="ayuda">Arrastra desde un punto de conexión hasta otro para crear un cable. Si lo sueltas en un espacio vacío se crea un <b>nodo de unión</b> (útil para ramas en paralelo). Clic sobre un elemento para seleccionarlo y moverlo. Clic sobre un cable para cambiar su doblez. <b>R</b> rota y <b>Supr</b> elimina el elemento seleccionado.</p>
   </div>
+
   <svg id="svgEsq" viewBox="0 0 1000 560"></svg>
+
   <div class="card" style="margin-top:12px">
     <div class="barra">
       <button class="btn" id="btnNuevo">📄 Nuevo</button>
       <button class="btn" id="btnGuardar">💾 Guardar</button>
-      <select id="lista"></select>
-      <button class="btn" id="btnCargar">📂 Abrir</button>
-      <button class="btn pel" id="btnQuitar">✕ Quitar</button>
+      <span id="estado"></span>
+      <div class="grupo"><b id="lblLista">Mis ejercicios</b>
+        <select id="lista"></select>
+        <button class="btn" id="btnCargar">📂 Abrir</button>
+        <button class="btn pel" id="btnQuitar">✕ Quitar</button>
+      </div>
+    </div>
+    <div class="barra" style="margin-top:8px">
       <button class="btn pri" id="btnEnlace">🔗 Copiar enlace para estudiantes</button>
       <button class="btn" id="btnProbar">▶ Probar como estudiante</button>
+      <button class="btn" id="btnExportar">⬇ Descargar copia de seguridad</button>
+      <button class="btn" id="btnImportar">⬆ Cargar copia de seguridad</button>
+      <input type="file" id="archivo" accept=".json,application/json" hidden>
     </div>
+    <p class="ayuda">Los ejercicios se guardan en este navegador. Para tenerlos en otro computador (o como respaldo), usa <b>Descargar copia de seguridad</b> y luego <b>Cargar copia de seguridad</b> en el otro equipo. No guardes desde una ventana privada: se borra al cerrarla.</p>
   </div>
 </section>
 
@@ -209,13 +289,13 @@ function dibujarEsquema(svg,d,editable,selId){
   d.elementos.forEach(e=>dibujarElem(svg,e,e.id===selId));
 }
 
-/* Codificación compacta para el enlace */
+/* Codificación compacta (para enlaces y para guardar) */
 const TIPOS=['actuador','bateria','interruptor','resistencia','nodo'];
 const COLS=['rojo','negro','azul'];
 function codificar(d){
   const idx={};d.elementos.forEach((e,i)=>idx[e.id]=i);
   const o={t:d.titulo,e:d.elementos.map(e=>[TIPOS.indexOf(e.tipo),Math.round(e.x),Math.round(e.y),e.rot||0]),
-    c:d.cables.map(c=>[idx[c.a.el],c.a.t,idx[c.b.el],c.b.t,COLS.indexOf(c.color),c.codo||0])};
+    c:d.cables.filter(c=>c.a.el in idx&&c.b.el in idx).map(c=>[idx[c.a.el],c.a.t,idx[c.b.el],c.b.t,COLS.indexOf(c.color),c.codo||0])};
   return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 function decodificar(s){
@@ -226,11 +306,30 @@ function decodificar(s){
     cables:o.c.map((a,i)=>({id:'c'+i,a:{el:'e'+a[0],t:a[1]},b:{el:'e'+a[2],t:a[3]},color:COLS[a[4]],codo:a[5]}))};
 }
 
-/* Estado del editor */
+/* ========== Almacenamiento ========== */
+const LS='tsp_protoboard_ejercicios',LS_BORR='tsp_protoboard_borrador';
+function leerLista(){try{const l=JSON.parse(localStorage.getItem(LS));return Array.isArray(l)?l:[];}catch(e){return [];}}
+function escribirLista(l){
+  try{localStorage.setItem(LS,JSON.stringify(l));return true;}
+  catch(e){toast('⚠️ Este navegador no permitió guardar. Usa “Descargar copia de seguridad”.');return false;}
+}
+function guardarBorrador(){try{localStorage.setItem(LS_BORR,codificar(esq));}catch(e){}}
+function leerBorrador(){try{const s=localStorage.getItem(LS_BORR);return s?decodificar(s):null;}catch(e){return null;}}
+
+/* ========== Estado del editor ========== */
 let esq={titulo:'',elementos:[],cables:[]};
 let sel=null,herrDoc='mover',colorDoc='rojo',dragD=null,tempD=null;
 const svgEsq=$('#svgEsq');
-function renderEditor(){dibujarEsquema(svgEsq,esq,true,sel);}
+
+function actualizarEstado(){
+  const e=$('#estado');
+  if(!esq.elementos.length){e.className='';e.textContent='';return;}
+  const t=(esq.titulo||'').trim();
+  const it=leerLista().find(x=>x.titulo===t);
+  if(it&&it.codigo===codificar(esq)){e.className='ok';e.textContent='✔ Guardado';}
+  else{e.className='pend';e.textContent='● Cambios sin guardar';}
+}
+function renderEditor(){dibujarEsquema(svgEsq,esq,true,sel);guardarBorrador();actualizarEstado();}
 function elemPorId(id){return esq.elementos.find(e=>e.id===id);}
 function terminalEn(p){
   let best=null,bd=12;
@@ -305,37 +404,96 @@ $$('[data-add]').forEach(b=>b.onclick=()=>{
 $$('[data-cc]').forEach(b=>b.onclick=()=>{colorDoc=b.dataset.cc;$$('[data-cc]').forEach(x=>x.classList.toggle('on',x===b));});
 $$('[data-th]').forEach(b=>b.onclick=()=>{herrDoc=b.dataset.th;$$('[data-th]').forEach(x=>x.classList.toggle('on',x===b));svgEsq.style.cursor=herrDoc==='borrar'?'pointer':'crosshair';});
 $('#btnRotar').onclick=rotarSel;
-$('#titulo').oninput=e=>esq.titulo=e.target.value;
+$('#titulo').oninput=e=>{esq.titulo=e.target.value;guardarBorrador();actualizarEstado();};
 
-/* Lista de ejercicios guardados (en este navegador) */
-const LS='tsp_protoboard_ejercicios';
-function leerLista(){try{return JSON.parse(localStorage.getItem(LS))||[];}catch(e){return [];}}
-function escribirLista(l){try{localStorage.setItem(LS,JSON.stringify(l));}catch(e){toast('No se pudo guardar en este navegador.');}}
+/* ========== Guardar / Abrir / Quitar ========== */
 function refrescarLista(selT){
   const s=$('#lista');const l=leerLista();
-  s.innerHTML=l.length?'':'<option value="">(sin ejercicios guardados)</option>';
+  s.innerHTML='';
+  if(!l.length){s.innerHTML='<option value="">(sin ejercicios guardados)</option>';}
   l.forEach((x,i)=>{const o=document.createElement('option');o.value=i;o.textContent=x.titulo;if(x.titulo===selT)o.selected=true;s.appendChild(o);});
+  $('#lblLista').textContent='Mis ejercicios ('+l.length+')';
 }
-function ponerEsquema(d){esq=d;sel=null;$('#titulo').value=esq.titulo;renderEditor();}
+function ponerEsquema(d){esq=d;sel=null;$('#titulo').value=esq.titulo||'';renderEditor();}
+
 $('#btnGuardar').onclick=()=>{
-  const t=(esq.titulo||'').trim();
-  if(!t)return toast('Escribe un título para el ejercicio.');
-  if(!esq.elementos.length)return toast('El esquema está vacío.');
-  const l=leerLista();const i=l.findIndex(x=>x.titulo===t);const item={titulo:t,codigo:codificar(esq)};
+  if(!esq.elementos.length)return toast('El esquema está vacío: agrega elementos antes de guardar.');
+  let t=(esq.titulo||'').trim();
+  if(!t){
+    t=(prompt('Nombre del ejercicio:','Ejercicio '+(leerLista().length+1))||'').trim();
+    if(!t)return;
+    esq.titulo=t;$('#titulo').value=t;
+  }
+  const cod=codificar(esq);
+  const l=leerLista();const i=l.findIndex(x=>x.titulo===t);
+  if(i>=0&&l[i].codigo!==cod&&!confirm('Ya existe un ejercicio llamado "'+t+'". ¿Reemplazarlo con este esquema?'))return;
+  const item={titulo:t,codigo:cod,fecha:new Date().toISOString()};
   if(i>=0)l[i]=item;else l.push(item);
-  escribirLista(l);refrescarLista(t);toast('Ejercicio guardado ✔');
+  if(escribirLista(l)){refrescarLista(t);actualizarEstado();toast('💾 Guardado: '+t);}
 };
-$('#btnCargar').onclick=()=>{const v=$('#lista').value;if(v==='')return;const it=leerLista()[+v];if(it)ponerEsquema(decodificar(it.codigo));};
+
+$('#btnCargar').onclick=()=>{
+  const v=$('#lista').value;
+  if(v==='')return toast('Todavía no hay ejercicios guardados.');
+  const it=leerLista()[+v];if(!it)return toast('No se encontró ese ejercicio.');
+  const est0=$('#estado').className;
+  if(esq.elementos.length&&est0==='pend'&&codificar(esq)!==it.codigo&&!confirm('Tienes cambios sin guardar. ¿Abrir "'+it.titulo+'" de todas formas?'))return;
+  try{ponerEsquema(decodificar(it.codigo));toast('📂 Abierto: '+it.titulo);}
+  catch(e){toast('⚠️ Ese ejercicio está dañado y no se pudo abrir.');}
+};
+
 $('#btnQuitar').onclick=()=>{
-  const v=$('#lista').value;if(v==='')return;const l=leerLista();
-  if(!confirm('¿Quitar "'+l[+v].titulo+'" de la lista?'))return;
-  l.splice(+v,1);escribirLista(l);refrescarLista();
+  const v=$('#lista').value;if(v==='')return;const l=leerLista();const it=l[+v];if(!it)return;
+  if(!confirm('¿Quitar "'+it.titulo+'" de tu lista? Esta acción no se puede deshacer.'))return;
+  l.splice(+v,1);if(escribirLista(l)){refrescarLista();actualizarEstado();toast('Ejercicio quitado.');}
 };
-$('#btnNuevo').onclick=()=>{if(esq.elementos.length&&!confirm('¿Empezar un esquema nuevo? Lo que no hayas guardado se perderá.'))return;ponerEsquema({titulo:'',elementos:[],cables:[]});};
+
+$('#btnNuevo').onclick=()=>{
+  if(esq.elementos.length&&$('#estado').className==='pend'&&!confirm('Tienes cambios sin guardar. ¿Empezar un esquema nuevo?'))return;
+  ponerEsquema({titulo:'',elementos:[],cables:[]});
+  $('#titulo').focus();
+};
+
+/* Copias de seguridad */
+$('#btnExportar').onclick=()=>{
+  const l=leerLista();
+  if(!l.length)return toast('No hay ejercicios guardados para descargar.');
+  const blob=new Blob([JSON.stringify({app:'protoboard-tsp',version:1,ejercicios:l},null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='ejercicios-protoboard-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+  toast('⬇ Copia descargada con '+l.length+' ejercicio(s).');
+};
+$('#btnImportar').onclick=()=>$('#archivo').click();
+$('#archivo').onchange=ev=>{
+  const f=ev.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const o=JSON.parse(r.result);
+      const nuevos=Array.isArray(o)?o:o.ejercicios;
+      if(!Array.isArray(nuevos))throw new Error();
+      const l=leerLista();let n=0;
+      nuevos.forEach(x=>{
+        if(!x||!x.titulo||!x.codigo)return;
+        try{decodificar(x.codigo);}catch(e){return;}
+        const i=l.findIndex(y=>y.titulo===x.titulo);
+        if(i>=0)l[i]=x;else l.push(x);n++;
+      });
+      if(escribirLista(l)){refrescarLista();actualizarEstado();toast('⬆ Se cargaron '+n+' ejercicio(s).');}
+    }catch(e){toast('⚠️ El archivo no es una copia de seguridad válida.');}
+    ev.target.value='';
+  };
+  r.readAsText(f);
+};
+
+/* Compartir y probar */
 $('#btnEnlace').onclick=()=>{
   if(!esq.elementos.length)return toast('El esquema está vacío.');
-  const url=location.href.split('#')[0]+'#ej='+codificar(esq);
-  if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast('Enlace copiado ✔ Compártelo con tus estudiantes.')).catch(()=>prompt('Copia este enlace:',url));
+  const url=location.href.split('#')[0].split('?')[0]+'#ej='+codificar(esq);
+  if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>toast('🔗 Enlace copiado. Compártelo con tus estudiantes.')).catch(()=>prompt('Copia este enlace:',url));
   else prompt('Copia este enlace:',url);
 };
 $('#btnProbar').onclick=()=>{cargarVista(clon(esq));invalidar();renderB();verModo('est');};
@@ -369,7 +527,6 @@ function construirBoard(){
   const defs=el('defs',{},svgB);
   const f=el('filter',{id:'brillo',x:'-100%',y:'-100%',width:'300%',height:'300%'},defs);el('feGaussianBlur',{stdDeviation:5},f);
   const sh=el('filter',{id:'sombra',x:'-5%',y:'-5%',width:'110%',height:'115%'},defs);el('feDropShadow',{dx:0,dy:3,stdDeviation:4,'flood-opacity':.18},sh);
-  // Batería
   el('rect',{x:25,y:185,width:100,height:170,rx:12,fill:'#2b2f3a',filter:'url(#sombra)'},svgB);
   el('rect',{x:25,y:185,width:100,height:32,rx:12,fill:'#3a4050'},svgB);
   el('path',{d:'M82,238 L62,286 L77,286 L68,325 L94,270 L79,270 Z',fill:'#facc15'},svgB);
@@ -380,7 +537,6 @@ function construirBoard(){
     el('circle',{cx:x,cy:170,r:2.8,fill:'#fff'},svgB);
     txtB(x,150,s,c==='#222'?'#111':c,18);
   });
-  // Protoboard
   el('rect',{x:150,y:22,width:690,height:416,rx:10,fill:'#fbfbf8',stroke:'#d9dcd2',filter:'url(#sombra)'},svgB);
   el('rect',{x:156,y:214,width:678,height:24,rx:3,fill:'#eceee6'},svgB);
   [[31,'#e02424'],[75,'#1e5bd8'],[383,'#e02424'],[427,'#1e5bd8']].forEach(([y,c])=>el('line',{x1:168,y1:y,x2:826,y2:y,stroke:c,'stroke-width':2},svgB));
@@ -631,15 +787,34 @@ function ejemplo(){
 }
 
 (function init(){
-  construirBoard();setHerr('cable');refrescarLista();
+  construirBoard();setHerr('cable');
   const m=location.hash.match(/ej=([^&]+)/);
   if(m){
     try{const d=decodificar(m[1]);alumnoFijo=true;$('#tabs').style.display='none';cargarVista(d);verModo('est');}
     catch(e){toast('El enlace del ejercicio no es válido.');}
   }
-  if(!alumnoFijo){ponerEsquema(ejemplo());cargarVista(null);}
+  if(!alumnoFijo){
+    refrescarLista();
+    const b=leerBorrador();
+    ponerEsquema(b&&b.elementos.length?b:ejemplo());
+    cargarVista(null);
+  }
   renderB();
 })();
 </script>
 </body>
 </html>
+Para comprobar que guarda y abre:
+
+Reemplaza todo el contenido de index.html con este código, usando el botón Copiar del bloque. Haz commit y entra con artifextsp.github.io/pro/?v=4.
+Ponle un título al ejemplo y presiona 💾 Guardar. Debe aparecer el aviso y el indicador “✔ Guardado”.
+Presiona 📄 Nuevo y el lienzo queda vacío. Arma otro esquema con otro título y guárdalo también.
+En Mis ejercicios elige el primero y presiona 📂 Abrir: debe volver a aparecer.
+Recarga la página: la lista y el último esquema en el que trabajabas siguen ahí.
+¿Cómo está funcionando Claude en esta sesión?
+
+
+
+
+Claude es una IA y puede cometer errores.
+Claude terminó la respuesta
